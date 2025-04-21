@@ -1,15 +1,11 @@
-// interface.go - Interface gráfica do jogo usando termbox
-// O código abaixo implementa a interface gráfica do jogo usando a biblioteca termbox-go.
-// A biblioteca termbox-go é uma biblioteca de interface de terminal que permite desenhar
-// elementos na tela, capturar eventos do teclado e gerenciar a aparência do terminal.
-
+// interface.go
 package main
 
 import (
 	"github.com/nsf/termbox-go"
 )
 
-// Define um tipo Cor para encapsuladar as cores do termbox
+// Define um tipo Cor para encapsular as cores do termbox
 type Cor = termbox.Attribute
 
 // Definições de cores utilizadas no jogo
@@ -21,9 +17,10 @@ const (
 	CorParede         = termbox.ColorBlack | termbox.AttrBold | termbox.AttrDim
 	CorFundoParede    = termbox.ColorDarkGray
 	CorTexto          = termbox.ColorDarkGray
+	CorRoxo           = termbox.ColorMagenta // Cor do portal
 )
 
-// EventoTeclado representa uma ação detectada do teclado (como mover, sair ou interagir)
+// EventoTeclado representa uma ação detectada do teclado
 type EventoTeclado struct {
 	Tipo  string // "sair", "interagir", "mover"
 	Tecla rune   // Tecla pressionada, usada no caso de movimento
@@ -59,30 +56,24 @@ func interfaceLerEventoTeclado() EventoTeclado {
 // Renderiza todo o estado atual do jogo na tela
 func interfaceDesenharJogo(jogo *Jogo) {
 	interfaceLimparTela()
-
-	// Desenha todos os elementos do mapa
 	for y, linha := range jogo.Mapa {
 		for x, elem := range linha {
 			interfaceDesenharElemento(x, y, elem)
 		}
 	}
-
-	// Desenha o personagem sobre o mapa
 	interfaceDesenharElemento(jogo.PosX, jogo.PosY, Personagem)
-
-	// Desenha a barra de status
 	interfaceDesenharBarraDeStatus(jogo)
-
-	// Força a atualização do terminal
 	interfaceAtualizarTela()
 }
+
+
 
 // Limpa a tela do terminal
 func interfaceLimparTela() {
 	termbox.Clear(CorPadrao, CorPadrao)
 }
 
-// Força a atualização da tela do terminal com os dados desenhados
+// Força a atualização da tela do terminal
 func interfaceAtualizarTela() {
 	termbox.Flush()
 }
@@ -94,15 +85,11 @@ func interfaceDesenharElemento(x, y int, elem Elemento) {
 
 // Exibe uma barra de status com informações úteis ao jogador
 func interfaceDesenharBarraDeStatus(jogo *Jogo) {
-	// Linha de status dinâmica
 	for i, c := range jogo.StatusMsg {
 		termbox.SetCell(i, len(jogo.Mapa)+1, c, CorTexto, CorPadrao)
 	}
-
-	// Instruções fixas
-	msg := "Use WASD para mover e E para interagir. ESC para sair."
+	msg := "Use WASD para mover, E para portal. ESC para sair."
 	for i, c := range msg {
 		termbox.SetCell(i, len(jogo.Mapa)+3, c, CorTexto, CorPadrao)
 	}
 }
-

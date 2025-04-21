@@ -1,46 +1,58 @@
-// personagem.go - Funções para movimentação e ações do personagem
+// personagem.go
 package main
 
 import "fmt"
 
-// Atualiza a posição do personagem com base na tecla pressionada (WASD)
+// Move o personagem (WASD), notifica inimigo e sinaliza portal
 func personagemMover(tecla rune, jogo *Jogo) {
 	dx, dy := 0, 0
 	switch tecla {
-	case 'w': dy = -1 // Move para cima
-	case 'a': dx = -1 // Move para a esquerda
-	case 's': dy = 1  // Move para baixo
-	case 'd': dx = 1  // Move para a direita
+	case 'w':
+		dy = -1
+	case 'a':
+		dx = -1
+	case 's':
+		dy = 1
+	case 'd':
+		dx = 1
+	}
+	nx, ny := jogo.PosX+dx, jogo.PosY+dy
+	if !jogoPodeMoverPara(jogo, nx, ny) {
+		return
 	}
 
-	nx, ny := jogo.PosX+dx, jogo.PosY+dy
-	// Verifica se o movimento é permitido e realiza a movimentação
-	if jogoPodeMoverPara(jogo, nx, ny) {
-		jogoMoverElemento(jogo, jogo.PosX, jogo.PosY, dx, dy)
-		jogo.PosX, jogo.PosY = nx, ny
+	jogo.Mutex.Lock()
+	// Move no mapa
+	jogoMoverElemento(jogo, jogo.PosX, jogo.PosY, dx, dy)
+	jogo.PosX, jogo.PosY = nx, jogo.PosY+dy
+	// Notifica o inimigo da posição atual do jogador
+	UpdateInimigoPosition(jogo)
+	// Se pisou no portal, sinaliza seu uso
+	if jogo.UltimoVisitado.simbolo == Portal.simbolo {
+		select {
+		case portalEnter <- struct{}{}:
+		default:
+		}
 	}
+	jogo.Mutex.Unlock()
+
+	jogo.StatusMsg = fmt.Sprintf("Movendo para (%d, %d)", jogo.PosX, jogo.PosY)
 }
 
-// Define o que ocorre quando o jogador pressiona a tecla de interação
-// Neste exemplo, apenas exibe uma mensagem de status
-// Você pode expandir essa função para incluir lógica de interação com objetos
+// Interação (não afeta portal nem inimigo)
 func personagemInteragir(jogo *Jogo) {
-	// Atualmente apenas exibe uma mensagem de status
 	jogo.StatusMsg = fmt.Sprintf("Interagindo em (%d, %d)", jogo.PosX, jogo.PosY)
 }
 
-// Processa o evento do teclado e executa a ação correspondente
+// Processa evento do teclado
 func personagemExecutarAcao(ev EventoTeclado, jogo *Jogo) bool {
 	switch ev.Tipo {
 	case "sair":
-		// Retorna false para indicar que o jogo deve terminar
 		return false
 	case "interagir":
-		// Executa a ação de interação
 		personagemInteragir(jogo)
 	case "mover":
-		// Move o personagem com base na tecla
 		personagemMover(ev.Tecla, jogo)
 	}
-	return true // Continua o jogo
+	return true
 }

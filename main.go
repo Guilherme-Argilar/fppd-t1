@@ -1,34 +1,58 @@
-// main.go - Loop principal do jogo
 package main
 
-import "os"
+import (
+	"os"
+	"time"
+)
 
 func main() {
-	// Inicializa a interface (termbox)
 	interfaceIniciar()
 	defer interfaceFinalizar()
 
-	// Usa "mapa.txt" como arquivo padrão ou lê o primeiro argumento
 	mapaFile := "mapa.txt"
 	if len(os.Args) > 1 {
 		mapaFile = os.Args[1]
 	}
 
-	// Inicializa o jogo
 	jogo := jogoNovo()
 	if err := jogoCarregarMapa(mapaFile, &jogo); err != nil {
 		panic(err)
 	}
 
-	// Desenha o estado inicial do jogo
+	// Canal de redesenho do inimigo
+	redrawChan := make(chan struct{}, 1)
+
+	// Canal de input do jogador
+	inputChan := make(chan EventoTeclado, 1)
+
+	// Inicia leitor de teclado numa goroutine
+	go func() {
+		for {
+			ev := interfaceLerEventoTeclado()
+			inputChan <- ev
+		}
+	}()
+
+	// Inicia elementos autônomos
+	InitPortal(&jogo)
+	InitInimigo(&jogo, redrawChan)
+	InitArmadilha(&jogo, redrawChan)
+	// Desenha primeira vez
 	interfaceDesenharJogo(&jogo)
 
-	// Loop principal de entrada
 	for {
-		evento := interfaceLerEventoTeclado()
-		if continuar := personagemExecutarAcao(evento, &jogo); !continuar {
-			break
+		select {
+		case ev := <-inputChan:
+			if continuar := personagemExecutarAcao(ev, &jogo); !continuar {
+				return
+			}
+			interfaceDesenharJogo(&jogo)
+
+		case <-redrawChan:
+			interfaceDesenharJogo(&jogo)
+
+		default:
+			time.Sleep(10 * time.Millisecond)
 		}
-		interfaceDesenharJogo(&jogo)
 	}
 }
