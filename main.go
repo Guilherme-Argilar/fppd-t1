@@ -1,58 +1,72 @@
 package main
 
 import (
-	"os"
-	"time"
+    "context"
+    "math/rand"
+    "os"
+    "time"
 )
 
 func main() {
-	interfaceIniciar()
-	defer interfaceFinalizar()
+    interfaceIniciar()
+    defer interfaceFinalizar()
 
-	mapaFile := "mapa.txt"
-	if len(os.Args) > 1 {
-		mapaFile = os.Args[1]
-	}
+    // Seed global random generator
+    rand.Seed(time.Now().UnixNano())
 
-	jogo := jogoNovo()
-	if err := jogoCarregarMapa(mapaFile, &jogo); err != nil {
-		panic(err)
-	}
+    ctx, cancel := context.WithCancel(context.Background())
+    jogo := NewJogo(ctx, cancel)
 
-	// Canal de redesenho do inimigo
-	redrawChan := make(chan struct{}, 1)
+    mapaFile := "mapa.txt"
+    if len(os.Args) > 1 {
+        mapaFile = os.Args[1]
+    }
 
-	// Canal de input do jogador
-	inputChan := make(chan EventoTeclado, 1)
+    if err := jogoCarregarMapa(mapaFile, jogo); err != nil {
+        panic(err)
+    }
 
-	// Inicia leitor de teclado numa goroutine
-	go func() {
-		for {
-			ev := interfaceLerEventoTeclado()
-			inputChan <- ev
-		}
-	}()
+    // Start keyboard input loop
+    go func() {
+        for {
+            select {
+            case <-ctx.Done():
+                return
+            default:
+                ev := interfaceLerEventoTeclado()
+                jogo.InputChan <- ev
+            }
+        }
+    }()
 
-	// Inicia elementos autônomos
-	InitPortal(&jogo)
-	InitInimigo(&jogo, redrawChan)
-	InitArmadilha(&jogo, redrawChan)
-	// Desenha primeira vez
-	interfaceDesenharJogo(&jogo)
+    // Initialize autonomous elements
+    InitPortal(jogo)
+    InitInimigo(jogo)
+    InitArmadilha(jogo)
 
-	for {
-		select {
-		case ev := <-inputChan:
-			if continuar := personagemExecutarAcao(ev, &jogo); !continuar {
-				return
-			}
-			interfaceDesenharJogo(&jogo)
+    interfaceDesenharJogo(jogo)
 
-		case <-redrawChan:
-			interfaceDesenharJogo(&jogo)
+    for {
+        select {
+        case ev := <-jogo.InputChan:
+            if continuar := personagemExecutarAcao(ev, jogo); !continuar {
+                cancel()
+                return
+            }
+            interfaceDesenharJogo(jogo)
 
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
+        case <-jogo.RedrawChan:
+            interfaceDesenharJogo(jogo)
+
+        case <-jogo.GameOverChan:
+            cancel()
+            return
+
+        case <-ctx.Done():
+            return
+
+        default:
+            time.Sleep(10 * time.Millisecond)
+        }
+    }
 }

@@ -1,79 +1,55 @@
-// portal.go
 package main
 
 import (
-	"math/rand"
-	"time"
+    "math/rand"
+    "time"
 )
 
-// canal para sinalizar que o jogador entrou no portal
-var portalEnter chan struct{}
-
-// InitPortal configura o canal e dispara a goroutine de spawn aleatório
 func InitPortal(jogo *Jogo) {
-	portalEnter = make(chan struct{}, 1)
-	rand.Seed(time.Now().UnixNano())
-	// parâmetro: activeDur=5s, minSpawn=5s, spawnRange=10s
-	go portalRoutine(jogo, 10*time.Second, 5*time.Second, 10*time.Second)
+    go portalRoutine(jogo, 5*time.Second, 5*time.Second, 10*time.Second)
 }
 
-// portalRoutine faz o portal surgir em lugar aleatório, espera uso ou expira
 func portalRoutine(jogo *Jogo, activeDur, minSpawn, spawnRange time.Duration) {
-	for {
-		// espera intervalo aleatório entre minSpawn e minSpawn+spawnRange
-		wait := minSpawn + time.Duration(rand.Int63n(int64(spawnRange)))
-		time.Sleep(wait)
+    for {
+        select {
+        case <-jogo.Ctx.Done():
+            return
+        default:
+        }
 
-		// escolhe célula vazia **fora** do lock
-		tx, ty := findRandomEmptyCell(jogo)
+        wait := minSpawn + time.Duration(rand.Int63n(int64(spawnRange)))
+        time.Sleep(wait)
 
-		// desenha portal
-		jogo.Mutex.Lock()
-		jogo.Mapa[ty][tx] = Portal
-		jogo.Mutex.Unlock()
+        tx, ty := findRandomEmptyCell(jogo)
 
-		// aguarda uso ou expiração
-		timer := time.NewTimer(activeDur)
-		used := false
-		select {
-		case <-portalEnter:
-			used = true
-		case <-timer.C:
-		}
-		timer.Stop()
+        jogo.Mu.Lock()
+        jogo.Mapa[ty][tx] = Portal
+        jogo.Mu.Unlock()
+        sinalizarRedraw(jogo)
 
-		if used {
-			// escolhe destino **fora** do lock
-			dx, dy := findRandomEmptyCell(jogo)
+        timer := time.NewTimer(activeDur)
+        used := false
+        select {
+        case <-jogo.PortalEnterChan:
+            used = true
+        case <-timer.C:
+        case <-jogo.Ctx.Done():
+            timer.Stop()
+            return
+        }
+        timer.Stop()
 
-			jogo.Mutex.Lock()
-			jogo.StatusMsg = "✅ Portal usado! Teleportando..."
-			// limpa portal
-			jogo.Mapa[ty][tx] = Vazio
-			// move personagem
-			jogo.PosX, jogo.PosY = dx, dy
-			jogo.Mutex.Unlock()
-		} else {
-			jogo.Mutex.Lock()
-			jogo.StatusMsg = "⌛ Portal expirou"
-			jogo.Mapa[ty][tx] = Vazio
-			jogo.Mutex.Unlock()
-		}
-	}
-}
-
-// findRandomEmptyCell encontra uma posição vazia não tangível
-func findRandomEmptyCell(jogo *Jogo) (int, int) {
-	for {
-		x := rand.Intn(len(jogo.Mapa[0]))
-		y := rand.Intn(len(jogo.Mapa))
-
-		jogo.Mutex.Lock()
-		cell := jogo.Mapa[y][x]
-		jogo.Mutex.Unlock()
-
-		if cell.simbolo == Vazio.simbolo {
-			return x, y
-		}
-	}
+        jogo.Mu.Lock()
+        if used {
+            dx, dy := findRandomEmptyCell(jogo)
+            jogo.StatusMsg = "✅ Portal usado! Teleportando..."
+            jogo.Mapa[ty][tx] = Vazio
+            jogo.PosX, jogo.PosY = dx, dy
+        } else {
+            jogo.StatusMsg = "⌛ Portal expirou"
+            jogo.Mapa[ty][tx] = Vazio
+        }
+        jogo.Mu.Unlock()
+        sinalizarRedraw(jogo)
+    }
 }

@@ -1,70 +1,78 @@
 // interface.go
 package main
 
-import (
-	"github.com/nsf/termbox-go"
-)
+import "github.com/nsf/termbox-go"
 
-// Define um tipo Cor para encapsular as cores do termbox
+// Cor representa as cores do termbox
 type Cor = termbox.Attribute
 
-// Definições de cores utilizadas no jogo
 const (
-	CorPadrao     Cor = termbox.ColorDefault
-	CorCinzaEscuro    = termbox.ColorDarkGray
-	CorVermelho       = termbox.ColorRed
-	CorVerde          = termbox.ColorGreen
-	CorParede         = termbox.ColorBlack | termbox.AttrBold | termbox.AttrDim
-	CorFundoParede    = termbox.ColorDarkGray
-	CorTexto          = termbox.ColorDarkGray
-	CorRoxo           = termbox.ColorMagenta // Cor do portal
+    CorPadrao      Cor = termbox.ColorDefault
+    CorCinzaEscuro     = termbox.ColorDarkGray
+    CorVermelho        = termbox.ColorRed
+    CorVerde           = termbox.ColorGreen
+    CorParede          = termbox.ColorBlack | termbox.AttrBold | termbox.AttrDim
+    CorFundoParede     = termbox.ColorDarkGray
+    CorTexto           = termbox.ColorDarkGray
+    CorRoxo            = termbox.ColorMagenta
 )
 
-// EventoTeclado representa uma ação detectada do teclado
+// Elementos visuais do jogo
+var (
+    Personagem = Elemento{'☺', CorCinzaEscuro, CorPadrao, true}
+    Inimigo    = Elemento{'☠', CorVermelho, CorPadrao, true}
+    Parede     = Elemento{'▤', CorParede, CorFundoParede, true}
+    Vegetacao  = Elemento{'♣', CorVerde, CorPadrao, false}
+    Vazio      = Elemento{' ', CorPadrao, CorPadrao, false}
+    Portal     = Elemento{'O', CorRoxo, CorPadrao, false}
+)
+
+// EventoTeclado representa uma ação do jogador lida do teclado
 type EventoTeclado struct {
-	Tipo  string // "sair", "interagir", "mover"
-	Tecla rune   // Tecla pressionada, usada no caso de movimento
+    Tipo  string // "sair", "interagir", "mover"
+    Tecla rune   // tecla pressionada, usada em caso de movimento
 }
 
-// Inicializa a interface gráfica usando termbox
+// Inicializa o termbox
 func interfaceIniciar() {
-	if err := termbox.Init(); err != nil {
-		panic(err)
-	}
+    if err := termbox.Init(); err != nil {
+        panic(err)
+    }
 }
 
-// Encerra o uso da interface termbox
+// Fecha o termbox
 func interfaceFinalizar() {
-	termbox.Close()
+    termbox.Close()
 }
 
-// Lê um evento do teclado e o traduz para um EventoTeclado
+// Lê um evento de teclado e converte para EventoTeclado
 func interfaceLerEventoTeclado() EventoTeclado {
-	ev := termbox.PollEvent()
-	if ev.Type != termbox.EventKey {
-		return EventoTeclado{}
-	}
-	if ev.Key == termbox.KeyEsc {
-		return EventoTeclado{Tipo: "sair"}
-	}
-	if ev.Ch == 'e' {
-		return EventoTeclado{Tipo: "interagir"}
-	}
-	return EventoTeclado{Tipo: "mover", Tecla: ev.Ch}
+    ev := termbox.PollEvent()
+    if ev.Type != termbox.EventKey {
+        return EventoTeclado{}
+    }
+    if ev.Key == termbox.KeyEsc {
+        return EventoTeclado{Tipo: "sair"}
+    }
+    if ev.Ch == 'e' {
+        return EventoTeclado{Tipo: "interagir"}
+    }
+    return EventoTeclado{Tipo: "mover", Tecla: ev.Ch}
 }
 
-// Renderiza todo o estado atual do jogo na tela
+// Desenha o estado atual do jogo na tela
 func interfaceDesenharJogo(jogo *Jogo) {
-	interfaceLimparTela()
-	for y, linha := range jogo.Mapa {
-		for x, elem := range linha {
-			interfaceDesenharElemento(x, y, elem)
-		}
-	}
-	interfaceDesenharElemento(jogo.PosX, jogo.PosY, Personagem)
-	interfaceDesenharBarraDeStatus(jogo)
-	interfaceAtualizarTela()
+    interfaceLimparTela()
+    for y, linha := range jogo.Mapa {
+        for x, elem := range linha {
+            interfaceDesenharElemento(x, y, elem)
+        }
+    }
+    interfaceDesenharElemento(jogo.PosX, jogo.PosY, Personagem)
+    interfaceDesenharBarraDeStatus(jogo)
+    interfaceAtualizarTela()
 }
+
 
 
 

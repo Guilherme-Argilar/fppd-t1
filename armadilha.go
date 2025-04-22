@@ -1,99 +1,104 @@
-// armadilha.go - Armadilha que aparece e desaparece e spawna inimigos
+// armadilha.go
 package main
 
-import (
-	"fmt"
-	"math/rand"
-	"os"
-	"time"
-)
+import "time"
 
-var redrawTrap chan struct{}
-
+// Armadilha: aparece e desaparece, spawna inimigos
 var Armadilha = Elemento{
-	simbolo:   '✖',
-	cor:       CorVermelho,
-	corFundo:  CorPadrao,
-	tangivel:  false,
+    simbolo:  '✖',
+    cor:      CorVermelho,
+    corFundo: CorPadrao,
+    tangivel: false,
 }
 
-func InitArmadilha(jogo *Jogo, redrawChannel chan struct{}) {
-	redrawTrap = redrawChannel
-	go armadilhaRoutine(jogo, 50*time.Millisecond)
+func InitArmadilha(jogo *Jogo) {
+    // Cria 20 armadilhas concorrentes ao iniciar
+    for i := 0; i < 20; i++ {
+        go armadilhaRoutine(jogo, 50*time.Millisecond)
+    }
 }
 
 func armadilhaRoutine(jogo *Jogo, tempoCheck time.Duration) {
-	rand.Seed(time.Now().UnixNano())
+    for {
+        select {
+        case <-jogo.Ctx.Done():
+            return
+        default:
+        }
 
-	for {
-		x, y := findRandomEmptyCell(jogo)
+        x, y := findRandomEmptyCell(jogo)
 
-		jogo.Mutex.Lock()
-		jogo.Mapa[y][x] = Armadilha
-		jogo.Mutex.Unlock()
-		sinalizarRedraw()
+        jogo.Mu.Lock()
+        jogo.Mapa[y][x] = Armadilha
+        jogo.Mu.Unlock()
+        sinalizarRedraw(jogo)
 
-		ativada := true
+        ativada := true
+        for ativada {
+            select {
+            case <-jogo.Ctx.Done():
+                return
+            default:
+            }
 
-		for ativada {
-			triggered := false
+            // jogador pisa na armadilha?
+            jogo.Mu.RLock()
+            if jogo.PosX == x && jogo.PosY == y {
+                jogo.Mu.RUnlock()
+                jogo.GameOverChan <- struct{}{}
+                return
+            }
+            jogo.Mu.RUnlock()
 
-			jogo.Mutex.Lock()
-			if jogo.PosX == x && jogo.PosY == y {
-				jogo.Mutex.Unlock()
-				fmt.Println("☠ Jogador pisou na armadilha!")
-				os.Exit(0)
-			}
+            // inimigo ativa armadilha?
+            triggered := false
+            inimigos := findAllInimigos(jogo)
+            for _, pos := range inimigos {
+                if pos[0] == x && pos[1] == y {
+                    triggered = true
+                    break
+                }
+            }
 
-			inimigos := findAllInimigos(jogo)
-			for _, pos := range inimigos {
-				ix, iy := pos[0], pos[1]
-				if ix == x && iy == y {
-					jogo.Mapa[y][x] = Vazio
-					triggered = true
-					break
-				}
-			}
-			jogo.Mutex.Unlock()
+            if triggered {
+                nx1, ny1 := findRandomEmptyCell(jogo)
+                nx2, ny2 := findRandomEmptyCell(jogo)
 
-			if triggered {
-				nx1, ny1 := findRandomEmptyCell(jogo)
-				nx2, ny2 := findRandomEmptyCell(jogo)
+                jogo.Mu.Lock()
+                jogo.Mapa[ny1][nx1] = Inimigo
+                jogo.Mapa[ny2][nx2] = Inimigo
+                jogo.StatusMsg = "⚠ Dois inimigos surgiram de uma armadilha!"
+                jogo.Mu.Unlock()
 
-				jogo.Mutex.Lock()
-				jogo.Mapa[ny1][nx1] = Inimigo
-				jogo.Mapa[ny2][nx2] = Inimigo
-				jogo.StatusMsg = "⚠ Dois inimigos surgiram de uma armadilha!"
-				jogo.Mutex.Unlock()
+                go inimigoRoutine(jogo, jogo.InimigoPosChan, jogo.InimigoPauseChan, jogo.RedrawChan, nx1, ny1)
+                go inimigoRoutine(jogo, jogo.InimigoPosChan, jogo.InimigoPauseChan, jogo.RedrawChan, nx2, ny2)
 
-				go inimigoRoutine(jogo, inimigoPos, inimigoPause, redrawTrap, nx1, ny1)
-				go inimigoRoutine(jogo, inimigoPos, inimigoPause, redrawTrap, nx2, ny2)
-
-				sinalizarRedraw()
-				ativada = false
-				break
-			}
-
-			time.Sleep(tempoCheck)
-		}
-	}
+                sinalizarRedraw(jogo)
+                ativada = false
+            } else {
+                time.Sleep(tempoCheck)
+            }
+        }
+    }
 }
 
-func sinalizarRedraw() {
-	select {
-	case redrawTrap <- struct{}{}:
-	default:
-	}
+func sinalizarRedraw(jogo *Jogo) {
+    select {
+    case jogo.RedrawChan <- struct{}{}:
+    default:
+    }
 }
 
 func findAllInimigos(jogo *Jogo) [][2]int {
-	var posicoes [][2]int
-	for y, linha := range jogo.Mapa {
-		for x, e := range linha {
-			if e.simbolo == Inimigo.simbolo {
-				posicoes = append(posicoes, [2]int{x, y})
-			}
-		}
-	}
-	return posicoes
+    var posicoes [][2]int
+    jogo.Mu.RLock()
+    defer jogo.Mu.RUnlock()
+    for y, linha := range jogo.Mapa {
+        for x, e := range linha {
+            if e.simbolo == Inimigo.simbolo {
+                posicoes = append(posicoes, [2]int{x, y})
+            }
+        }
+    }
+    return posicoes
 }
