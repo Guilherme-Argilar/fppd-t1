@@ -20,8 +20,10 @@ func inimigoRoutine(jogo *Jogo, posChan <-chan [2]int, redrawChan chan struct{},
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	px, py := jogo.PosX, jogo.PosY
-
+	jogo.Mu.RLock()
+	px, py := jogo.PosX, jogo.PosY // leitura protegida
+	jogo.Mu.RUnlock()
+	
 	for {
 		select {
 		case <-jogo.Ctx.Done():
