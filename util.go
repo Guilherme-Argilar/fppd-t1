@@ -79,15 +79,3 @@ func nextStep(jogo *Jogo, sx, sy, gx, gy int) (int, int, bool) {
     return cx, cy, true
 }
 
-func encontrarSentinela(jogo *Jogo) (int, int) {
-	jogo.Mu.RLock()
-	defer jogo.Mu.RUnlock()
-	for y, linha := range jogo.Mapa {
-		for x, e := range linha {
-			if e.simbolo == Sentinela.simbolo {
-				return x, y
-			}
-		}
-	}
-	return -1, -1 // se não encontrar
-}
