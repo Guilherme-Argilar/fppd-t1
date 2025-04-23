@@ -1,18 +1,11 @@
-// armadilha.go
+
 package main
 
-import "time"
-
-// Armadilha: aparece e desaparece, spawna inimigos
-var Armadilha = Elemento{
-    simbolo:  '✖',
-    cor:      CorVermelho,
-    corFundo: CorPadrao,
-    tangivel: false,
-}
+import (
+    "time"
+)
 
 func InitArmadilha(jogo *Jogo) {
-    // Cria 20 armadilhas concorrentes ao iniciar
     for i := 0; i < 20; i++ {
         go armadilhaRoutine(jogo, 50*time.Millisecond)
     }
@@ -27,7 +20,6 @@ func armadilhaRoutine(jogo *Jogo, tempoCheck time.Duration) {
         }
 
         x, y := findRandomEmptyCell(jogo)
-
         jogo.Mu.Lock()
         jogo.Mapa[y][x] = Armadilha
         jogo.Mu.Unlock()
@@ -41,7 +33,6 @@ func armadilhaRoutine(jogo *Jogo, tempoCheck time.Duration) {
             default:
             }
 
-            // jogador pisa na armadilha?
             jogo.Mu.RLock()
             if jogo.PosX == x && jogo.PosY == y {
                 jogo.Mu.RUnlock()
@@ -50,7 +41,6 @@ func armadilhaRoutine(jogo *Jogo, tempoCheck time.Duration) {
             }
             jogo.Mu.RUnlock()
 
-            // inimigo ativa armadilha?
             triggered := false
             inimigos := findAllInimigos(jogo)
             for _, pos := range inimigos {
@@ -61,18 +51,17 @@ func armadilhaRoutine(jogo *Jogo, tempoCheck time.Duration) {
             }
 
             if triggered {
-                nx1, ny1 := findRandomEmptyCell(jogo)
-                nx2, ny2 := findRandomEmptyCell(jogo)
-
                 jogo.Mu.Lock()
-                jogo.Mapa[ny1][nx1] = Inimigo
-                jogo.Mapa[ny2][nx2] = Inimigo
-                jogo.StatusMsg = "⚠ Dois inimigos surgiram de uma armadilha!"
+                jogo.Mapa[y][x] = Vazio
                 jogo.Mu.Unlock()
 
-                go inimigoRoutine(jogo, jogo.InimigoPosChan, jogo.InimigoPauseChan, jogo.RedrawChan, nx1, ny1)
-                go inimigoRoutine(jogo, jogo.InimigoPosChan, jogo.InimigoPauseChan, jogo.RedrawChan, nx2, ny2)
+                tx, ty := findRandomEmptyCell(jogo)
+                jogo.Mu.Lock()
+                jogo.Mapa[ty][tx] = Inimigo
+                jogo.StatusMsg = "⚠ Inimigo teletransportado!"
+                jogo.Mu.Unlock()
 
+                go inimigoRoutine(jogo, jogo.InimigoPosChan, jogo.RedrawChan, tx, ty)
                 sinalizarRedraw(jogo)
                 ativada = false
             } else {
