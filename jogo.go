@@ -13,7 +13,7 @@ type Jogo struct {
     UltimoVisitado Elemento
     StatusMsg      string
     Score          int
-
+    AlertaChan chan [2]int
     Mu             sync.RWMutex
     RedrawChan     chan struct{}
     InputChan      chan EventoTeclado

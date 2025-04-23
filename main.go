@@ -39,6 +39,8 @@ func main() {
 	InitMoeda(jogo)
 	InitInimigo(jogo)
 	InitArmadilha(jogo)
+	jogo.AlertaChan = make(chan [2]int, 1)
+	InitSentinela(jogo, jogo.AlertaChan)
 
 	interfaceDesenharJogo(jogo)
 
